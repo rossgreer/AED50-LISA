@@ -6,137 +6,213 @@ import cv2
 import numpy as np
 import matplotlib.transforms as mtransforms
 import time
-
-class CrosswalkScene():
-    def __init__(self, filepath):
-        self.df = pd.read_csv(filepath)
-        self.times = self.times_from_timestamps()
-        self.road_user_to_color = ["black","red","purple","green","blue"]
-        self.corners = [(37,26),(22,37),(33,60),(46,45)] #pixel coordinates, row then column
-
-    def get_corners_from_rectangle(self, center, dimensions, angle):
-        # create the (normalized) perpendicular vectors, scale them appropriately by the dimensions
-        v1 = [.5*dimensions[0]*np.cos(angle), .5*dimensions[0]*np.sin(angle)]
-        v2 = [.5*dimensions[1]*-v1[1], .5*dimensions[1]*v1[0]]  # rotate by 90
-
-        # return the corners by moving the center of the rectangle by the vectors
-        corner1 = (center[0]+v1[0]+v2[0], center[1]+v1[1]+v2[1])
-        corner2 = (center[0]-v1[0]+v2[0], center[1]-v1[1]+v2[1])
-        corner3 = (center[0]-v1[0]-v2[0], center[1]-v1[1]-v2[1])
-        corner4 = (center[0]+v1[0]-v2[0], center[1]+v1[1]-v2[1])
-
-        return np.array([corner1, corner2, corner3, corner4])
-
-    def add_to_heatmap(self, sum_map):
-        for index,row in self.df.iterrows():
-            #print(row)
-            bbx = row['BBox_Position_X']
-            bby = row['BBox_Position_Y']
-
-            road_user_color = self.road_user_to_color[int(row['Label'])]
-
-            # Create a Rectangle patch. Cars red, bikes green, pedestrians yellow. Blue is unknown, black is none.  
-            if road_user_color == "purple": #road_user_color != "black" and road_user_color != "blue":
-                sum_map[86-int(bby)-40][int(bbx+40)] += 1
-
-        return sum_map
-
-    def display_scene_at_time(self, time):
-        # for the time, gather all rows
-        timeset = self.df[self.df['Timestamp'] == self.times[time]]
-        #print(timeset)
-
-        # for each object, draw a bounding box of that color
-        # fig, ax = plt.subplots()
-        plt.xlim([-40, 46])
-        plt.ylim([-40, 46])
-        plt.gca().set_aspect('equal', adjustable='box')
-        for index,row in timeset.iterrows():
-            #print(row)
-            bbx = row['BBox_Position_X']
-            bby = row['BBox_Position_Y']
-            bbsx = row['BBox_Size_X']
-            bbsy = row['BBox_Size_Y']
-            yaw = row['BBox_Yaw']
-            # print("Stats")
-            # print(bbx)
-            # print(bby)
-            # print(bbsx)
-            # print(bbsy)
-            # print(self.get_corners_from_rectangle([bbx,bby],[bbsx,bbsy],yaw))
-            road_user_color = self.road_user_to_color[int(row['Label'])]
-
-            # Create a Rectangle patch. Cars red, bikes green, pedestrians yellow. Blue is unknown, black is none.  
-            if road_user_color == "purple": #road_user_color != "black" and road_user_color != "blue":
-                rect = patches.Rectangle((bbx-bbsx/2, bby-bbsy/2), bbsx, bbsy, linewidth=1, edgecolor=road_user_color, facecolor=road_user_color)
-                t2 = mtransforms.Affine2D().rotate_around(bbx, bby, yaw)+ plt.gca().transData
-                rect.set_transform(t2)
-
-
-                #rect = patches.Rectangle((0, 0), .5, .5, linewidth=1, edgecolor='r', facecolor='none')
-
-                # Add the patch to the Axes
-                plt.gca().add_patch(rect)
-
-            #rect = patches.Rectangle((bbx-bbsx/2, bby-bbsy/2), bbsx, bbsy, linewidth=1, edgecolor=road_user_color, facecolor=road_user_color)
-            #plt.gca().add_patch(rect)
-
-
-            # #corners = self.get_corners_from_rectangle((bbx,bby),(bbsx,bbsy),yaw)
-            # #rr = cv2.minAreaRect(corners)
-            # rot_rect = ((bbx,bby),(bbsx,bbsy),yaw)
-            # box = cv2.boxPoints(rot_rect)
-            # box = np.int0(box)
-            # cv2.drawContours(im,[box],0,(0,0,255),2)
-
-        plt.show(block=False)
-
-        return 0
-
-    def times_from_timestamps(self):
-        timestamps = self.df['Timestamp'].unique()
-        return timestamps
-
-class Pedestrian():
-    def __init__(self, filepath):
-        self.id = 
-        self.origin = -1
-        self.destination = -1
-
-    def find_origin(self):
-        # scan through the file for any rows which contain 'id'
-        # if it contains 'id'
-
-
-    def find_destination(self):
+from sklearn.cluster import KMeans
+from numpy import arccos, array
+from numpy.linalg import norm
+from utils import plot_bounds, find_angle, distance
+from pedestrian import Pedestrian
+from crosswalk import CrosswalkScene
+from sklearn.decomposition import PCA
 
 
 
-
-cs1 = CrosswalkScene('Competition_Data/Lidar/collection_full.csv')
-#cs2 = CrosswalkScene('Competition_Data/Lidar/collection_two.csv')
-#cs3 = CrosswalkScene('Competition_Data/Lidar/collection_three.csv')
-#cs = CrosswalkScene('Demo_Data/SAMPLE_LIDAR_OUTPUT.csv')
-
-heatmap = np.zeros((86,86))
-mm = cs1.add_to_heatmap(heatmap)
-#mm = cs2.add_to_heatmap(mm)
-#mm = cs3.add_to_heatmap(mm)
-
-plt.imshow(mm, cmap='gray')
-plt.show()
-
-
-# for i in range(int(len(cs.times)/2)):
-#   cs.display_scene_at_time(i)
-#   #plt.pause(.1)
-#   if i%100 == 0:
-#       print(i)
-#   if i == int(len(cs.times)/2)-1:
-#       plt.savefig('sample2.png')
-#   #print("here")
-#   #plt.gca().close()
+cs1 = CrosswalkScene('Competition_Data/Lidar/pedestrians_only_one.csv')  
+cs2 = CrosswalkScene('Competition_Data/Lidar/pedestrians_only_two.csv')  
+cs3 = CrosswalkScene('Competition_Data/Lidar/pedestrians_only_three.csv')  
+#cs1 = CrosswalkScene('Competition_Data/Lidar/pedestrians_only.csv')  
 
 
 
+def generate_heatmap():
+
+    heatmap = np.zeros((86,86))
+    mm = cs1.add_to_heatmap(heatmap)
+    #mm = cs2.add_to_heatmap(mm)
+    #mm = cs3.add_to_heatmap(mm)
+
+    plt.imshow(mm, cmap='gray')
+    plt.savefig('heatmap.png')
+    plt.show()
+
+
+#generate_heatmap()
+
+xs = []
+ys = []
+zs_flagged = []
+zs_noflagged = []
+# for each pedestrian
+df1 = pd.read_csv('Competition_Data/Lidar/pedestrians_only_one.csv')
+df2 = pd.read_csv('Competition_Data/Lidar/pedestrians_only_two.csv')
+df3 = pd.read_csv('Competition_Data/Lidar/pedestrians_only_three.csv')
+
+
+
+def class_frequencies():
+    classes = {}
+    flagged = [0,0]
+    flagged_velocities = []
+    flagged_x = []
+    flagged_y = []
+    flagged_heights = []
+    vectors = []
+    for cs,df in zip([cs1, cs2, cs3],[df1, df2, df3]):
+        pedestrian_list = df['ID'].unique()
+        for i,ped in enumerate(pedestrian_list):
+            current_pedestrian = Pedestrian(ped, df[df['ID'] == ped], cs)
+            # if i == 0:
+            #     current_pedestrian.run_through_path_with_light_state(True)
+            # if i == -1:
+            #     current_pedestrian.run_through_path_with_light_state(True)
+            # predict the category
+            if current_pedestrian.category in classes.keys():
+                classes[current_pedestrian.category] += 1
+            else:
+                classes[current_pedestrian.category] = 1 
+            if current_pedestrian.category == "Crossing":
+                if current_pedestrian.crossing_flag():
+                    flagged[0] += 1
+                    vel = current_pedestrian.predicted_speed_to_destination(4,4)
+                    height = df[df['ID']==ped]['BBox_Size_Z'].mean()
+                    x = max(df[df['ID']==ped]['BBox_Size_X'].mean(), df[df['ID']==ped]['BBox_Size_Y'].mean())
+                    y = min(df[df['ID']==ped]['BBox_Size_X'].mean(), df[df['ID']==ped]['BBox_Size_Y'].mean())
+                    flagged_velocities += [vel]
+                    flagged_heights += [height]
+                    flagged_x += [x]
+                    flagged_y += [y]
+                    vectors += [[vel, height, x, y]]
+
+
+
+                else:
+                    flagged[1] += 1
+            #     height = df[df['ID']==ped]['BBox_Size_X'].mean() * df[df['ID']==ped]['BBox_Size_Y'].mean()
+            #     if current_pedestrian.crossing_flag():
+            #         zs_flagged += [height]
+            #     else:
+            #         zs_noflagged += [height]
+    print(classes)
+    print(flagged)
+    means = subclassify(vectors)
+    plt.hist(flagged_velocities)
+    plt.xlabel("Pedestrian Max Speed Toward Destination (m/s)")
+    plt.ylabel("Count")
+    plt.gcf().savefig('vel_hist.png')
+    plt.show()
+    plt.hist(flagged_x)
+    plt.xlabel("Pedestrian Size X (m)")
+    plt.ylabel("Count")
+    plt.gcf().savefig('x_hist.png')
+    plt.show()
+    plt.hist(flagged_y)
+    plt.xlabel("Pedestrian Size Y (m)")
+    plt.ylabel("Count")
+    plt.gcf().savefig('y_hist.png')
+    plt.show()
+    plt.hist(flagged_heights)
+    plt.xlabel("Pedestrian Height (m)")
+    plt.ylabel("Count")
+    plt.gcf().savefig('height_hist.png')
+    plt.show()
+    return means
+
+def build_results(means):
+    with open('results.csv', 'w',newline="") as f:
+        # create the csv writer
+        writer = csv.writer(f)
+        writer.writerow(["Pedestrian Track ID", "Trajectory Category","Estimated Crossing Time","Extended Crossing Time Needed"])
+        for cs,df in zip([cs1, cs2, cs3],[df1, df2, df3]):
+            pedestrian_list = df['ID'].unique()
+            for i,ped in enumerate(pedestrian_list):
+                current_pedestrian = Pedestrian(ped, df[df['ID'] == ped], cs)
+                # if i == 0:
+                #     current_pedestrian.run_through_path_with_light_state(True)
+                # if i == -1:
+                #     current_pedestrian.run_through_path_with_light_state(True)
+                # predict the category
+                if current_pedestrian.category == "Crossing":
+                    time_to_cross = current_pedestrian.predicted_speed_to_destination(4,4)*distance(current_pedestrian.cs.corners[current_pedestrian.origin], current_pedestrian.cs.corners[current_pedestrian.destination])
+                    flag = current_pedestrian.crossing_flag()
+                else:
+                    time_to_cross = 0
+                    flag = 0
+                if flag != 0:
+                    vel = current_pedestrian.predicted_speed_to_destination(4,4)
+                    height = df[df['ID']==ped]['BBox_Size_Z'].mean()
+                    x = max(df[df['ID']==ped]['BBox_Size_X'].mean(), df[df['ID']==ped]['BBox_Size_Y'].mean())
+                    y = min(df[df['ID']==ped]['BBox_Size_X'].mean(), df[df['ID']==ped]['BBox_Size_Y'].mean())
+                    subclass = means.transform([[vel,height,x,y]])[0]
+                else:
+                    subclass = 0
+                print(subclass)
+                row = [ped, current_pedestrian.category,time_to_cross,flag,int(subclass)+1]
+                # write a row to the csv file
+                writer.writerow(row)
+                # if current_pedestrian.category == "Crossing":
+                #     height = df[df['ID']==ped]['BBox_Size_X'].mean() * df[df['ID']==ped]['BBox_Size_Y'].mean()
+                #     if current_pedestrian.crossing_flag():
+                #         zs_flagged += [height]
+                #     else:
+                #         zs_noflagged += [height]
+        #print(classes)
+
+def subclassify(vectors):
+    # PCA then display
+    X = np.array(vectors)
+    colors = ['red','green','blue','cyan','orange']
+    kmeans = KMeans(n_clusters=4, random_state=0).fit(X)
+
+    pca = PCA(n_components=2)
+    pca.fit(X)
+    print(pca.components_)
+    y = pca.transform(X)
+    for i,p in enumerate(y):
+        plt.scatter(p[0],p[1],color = colors[int(kmeans.labels_[i])])
+    plt.title("PCA Projection of K-Means Classes for Flagged Pedestrians")
+    plt.gcf().savefig("pca.png")
+    plt.show()
+    return kmeans
+
+means = class_frequencies()
+build_results(means)
+
+# f, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+# ax1.hist(zs_flagged,bins=20)
+# ax1.set_title('Sharing Y axis')
+# ax2.hist(zs_noflagged,bins=20)
+# plt.show()
+# print(len(zs_noflagged))
+# print(len(zs_flagged))
+
+
+
+# if the category is crossing
+# predict the flag
+# if the flag is on, collect the size_xyz situation
+# show these statistics
+
+# store the pedestrian ID, category, flag
+
+
+
+
+
+
+
+
+
+
+# steps for tuesday: figure out the future_destination of each trajectory (extend vector of velocity, find nearest node when stepping forward)
+# estimate time to reach 
+# figure out phases of signals
+# MERGE PEDESTRIANS WHO HAVE THE SAME MATCHING END TO START POINTS
+
+# Goal: pedestrian ID, then column whether crossing, noncrossing, bicycle, etc.
+# If crossing, predict crossing time (regardless of whether crossing has completed)
+# If crossing will not be completed, raise a flag.
+
+## NOTE: some of the pedestrians that start on a red path midway through might be STUCK or might be JAYWALKING. should cluster by velocity to determine outliers. 
+
+
+# REMOVE "JAYWALKERS" NOW, right now the fakeys are combined
 
