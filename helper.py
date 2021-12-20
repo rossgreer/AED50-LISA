@@ -1,29 +1,15 @@
-### Make pedestrian-only dataset
-
 import pandas as pd
 
-#df = pd.read_csv('Competition_Data/Lidar/collection_full.csv')
-#df = pd.read_csv('Competition_Data/SPM/SPM_COLLECTION_ONE_r.csv')
+### Functions to make pedestrian-only dataset and phase signal datasets.
 
-# pedestrian_set = df['Message'].unique()
-# print(len(pedestrian_set))
-# print(pedestrian_set)
-
-#pedestrian_set.to_csv('Competition_Data/Lidar/pedestrians_only.csv')
-
-#print(len(pedestrian_set))
 
 def gen_ped_cycle_set():
-
+	"""Writes a CSV file with only pedestrian and cyclist entries (vehicles removed)"""
 	df = pd.read_csv('Competition_Data/Lidar/collection_three.csv')
 	print(len(df))
 	pedestrian_set = df[(df['Label']==2) | (df['Label']==3)]
 	print(len(pedestrian_set))
 	pedestrian_set.to_csv('Competition_Data/Lidar/pedestrians_only_three.csv')
-
-
-def peds_only():
-	return 0
 
 non_ped_messages = ['Data Gap Alarm', 'Unit Flash Status', 'Unit Alarm Status 1', 'Alarm Group Status', 'Special Func Output Off  (Func #1)', 'Special Func Output Off  (Func #2)',
                     'Special Func Output Off  (Func #3)', 'Special Func Output Off  (Func #4)', 'Special Func Output Off  (Func #5)', 'Special Func Output Off  (Func #6)', 
@@ -61,13 +47,13 @@ omit4_related_messages = ['Ped Omit On  (Ped 4)', 'Ped Omit Off  (Ped 4)']
 
 
 def gen_ped2_commands():
+	""" Writes a CSV file for each of the phase information sets, containing information about the pedestrian crossing only."""
 	two_messages = []
 	four_messages = []
 	two_phases = []
 	four_phases = []
 	four_omits = []
 	# for each row of the SPM file
-	#df = pd.read_csv('Competition_Data/SPM/UPDATED_SPM_COLLECTION_ONE.csv')
 	df = pd.read_csv('Competition_Data/SPM/updated_complete_spm.csv')
 
 	for index, row in df.iterrows():
@@ -75,30 +61,13 @@ def gen_ped2_commands():
 			two_messages += [[row['Message'], row['Timestamp']]]
 		elif row['Message'] in ped4_related_messages: #or row['Message'] in phase4_related_messages or row['Message'] in omit4_related_messages:
 			four_messages += [[row['Message'], row['Timestamp']]]
-		# elif row['Message'] in phase2_related_messages:
-		# 	two_phases += [[row['Message'], row['Timestamp']]]
-		# elif row['Message'] in phase4_related_messages:
-		# 	four_phases += [[row['Message'], row['Timestamp']]]
-		# elif row['Message'] in omit4_related_messages:
-		# 	four_omits += [[row['Message'], row['Timestamp']]]
-		# elif row['Message'] not in non_ped_messages:
-		# 	print("Error.")
-		# 	print(row['Message'])
-	#print(two_timestamps)
-	#print(two_messages)
+
 	df2 = pd.DataFrame(two_messages, columns=['Message', 'Timestamp'])
 	df4 = pd.DataFrame(four_messages, columns=['Message', 'Timestamp'])
 	df2.to_csv('Competition_Data/SPM/signal_two_part_one.csv')
 	df4.to_csv('Competition_Data/SPM/signal_four_part_one.csv')
-	# df2 = pd.DataFrame(two_phases, columns=['Message', 'Timestamp'])
-	# df4 = pd.DataFrame(four_phases, columns=['Message', 'Timestamp'])
-	# df2.to_csv('Competition_Data/SPM/signal_two_part_one_phase.csv')
-	# df4.to_csv('Competition_Data/SPM/signal_four_part_one_phase.csv')
-	# df2 = pd.DataFrame(four_omits, columns=['Message', 'Timestamp'])
-	# df2.to_csv('Competition_Data/SPM/signal_four_part_one_omits.csv')
-
 
 #gen_ped2_commands()
-gen_ped_cycle_set()
+#gen_ped_cycle_set()
 
 
